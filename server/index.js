@@ -91,7 +91,7 @@ app.post('/logout', (req, res) =>{
 
 app.post('/upload-by-link', async (req, res) => {
   const { link } = req.body;
-  const newName = 'photo' + Date.now() + '.jpg'; // Corrected string concatenation
+  const newName = 'photo' + Date.now() + '.jpg'; 
   await imageDownloader.image({
     url: link,
     dest: __dirname + '/uploads/' + newName,
@@ -116,25 +116,25 @@ app.post('/upload', photosMiddleware.array('photos', 100),(req,res) =>{
 
 app.post('/places', (req, res) => {
   const { token } = req.cookies;
-  const { title, adress, addedPhotos, description, perks, extraInfo, checkIn, checkOut, maxGuests } = req.body;
-
+  const { title, address, addedPhotos, description, perks, extraInfo, checkIn, checkOut, maxGuests, price } = req.body;
+  console.log({price});
   jwt.verify(token, jwtSecret, {}, async (err, userData) => {
     if (err) throw err;
-
+  
     try {
       const placeDoc = await Place.create({
         owner: userData.id,
         title,
-        adress,
-        addedPhotos,
+        address,
+        photos:addedPhotos,
         description,
         perks,
         extraInfo,
         checkIn,
         checkOut,
         maxGuests,
+        price,
       });
-
       res.json(placeDoc);
     } catch (error) {
       console.error(error); 
@@ -142,5 +142,59 @@ app.post('/places', (req, res) => {
     }
   });
 });
+app.get('/user-places', (req,res) =>{
+  const { token } = req.cookies;
+  jwt.verify(token, jwtSecret, {}, async (err, userData) => {
+    const {id} = userData;
+    res.jsonp(await Place.find({owner:id}))
+
+  });
+});
+
+app.get('/places/:id', async (req,res) =>{
+ const {id} = req.params;
+ res.json(await Place.findById(id))
+});
+app.put('/places', async (req, res) => {
+  const { token } = req.cookies;
+  const { id, title, address, addedPhotos, description, perks, extraInfo, checkIn, checkOut, maxGuests,price} = req.body;
+
+  try {
+    const userData = jwt.verify(token, jwtSecret);
+    const placeDoc = await Place.findById(id);
+
+    if (!placeDoc) {
+      return res.status(404).json({ message: 'Place not found' });
+    }
+
+    if (userData.id === placeDoc.owner.toString()) {
+      placeDoc.set({
+        title,
+        address,
+        photos: addedPhotos,
+        description,
+        perks,
+        extraInfo,
+        checkIn,
+        checkOut,
+        maxGuests,
+        price,
+      });
+
+      await placeDoc.save();
+      return res.json('ok');
+    } else {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+app.get('/places', async (req,res) =>{
+  res.json( await Place.find());
+})
+
 
 app.listen(5002, () => console.log("Server listening on port 5002"));
